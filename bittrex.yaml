@@ -1,0 +1,7 @@
+init_config:
+    min_collection_interval: 30
+    markets:
+    - BTC-PTOY
+    - BTC-LTC
+instances:
+    [{}]
