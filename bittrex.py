@@ -5,46 +5,73 @@ import json
 
 class BittrexTickerCheck(AgentCheck):
 
-    baseUrl = 'https://bittrex.com/api/v1.1/public/getticker?market='
+    #baseUrl = 'https://bittrex.com/api/v1.1/public/getticker?market='
+    baseUrl = 'https://bittrex.com/api/v1.1/public/getmarketsummaries';
     markets = []
+    minBaseVolume = None;
     ctx = None
 
     def check(self, instance):
 
+        content = urllib2.urlopen(self.baseUrl, context=self.ctx);
+        self.log.info(content);
 
-        for market in self.markets:
-            url = self.baseUrl + market;
-            self.log.info(url);
+        content = json.load(content);
 
-            content = urllib2.urlopen(url, context=self.ctx);
-            self.log.info(content);
+        for res in content.get("result"):
 
-            content = json.load(content);
+            market = res.get("MarketName");
 
-            self.log.info(content.get("result"));
-
-            bid = content.get("result").get('Bid')
-            ask = content.get("result").get('Ask')
-            last = content.get("result").get('Last')
-
-            self.log.info("Bid=%s" % bid)
-            self.log.info("Ask=%s" % ask)
-            self.log.info("Last=%s" % last)
+            if not self.checkMarket(market):
+                continue;
 
 
+            data = {}
+            data['low'] = res.get("Low");
+            data['high'] = res.get("High");
+            data['volume'] = res.get("Volume");
+            data['last'] = res.get("Last");
+            data['baseVolume'] = res.get("BaseVolume");
+            #data['bid'] = res.get("Bid") * 100000;
+            #data['ask'] = res.get("Ask") * 100000;
+            data['openBuyOrders'] = res.get("OpenBuyOrders");
+            data['openSellOrders'] = res.get("OpenSellOrders");
 
-            self.gauge("crypto.ticker.bid", bid, ["market:" + market, "exchange:bittrex"], None, None)
-            self.gauge("crypto.ticker.ask", ask, ["market:" + market, "exchange:bittrex"], None, None)
-            self.gauge("crypto.ticker.last", last, ["market:" + market, "exchange:bittrex"], None, None)
 
+            if data["baseVolume"] < self.minBaseVolume:
+                self.log.info("Market " + market + " < %s BTC, not publishing." % self.minBaseVolume);
+                continue;
+
+            self.log.info("Publishing marketdata for " + market);
+
+            for key in data:
+                self.gauge("crypto.ticker." + key, data.get(key), ["market:" + market, "exchange:bittrex"], None, None)
+
+
+    def checkMarket(self, market):
+
+        if market in self.markets:
+            return 1;
+
+        for m in self.markets:
+            if m.endswith("*"):
+                newMarket = m[:len(m)-1]
+                #self.log.info("newMarket " + newMarket);
+                if market.startswith(newMarket):
+                    return 1;
+
+        return 0;
 
 
     def __init__(self, *args, **kwargs):
         AgentCheck.__init__(self, *args, **kwargs)
 
-        self.log.info('markets: %s' % ','.join(self.init_config.get('markets')))
-    
+
         self.markets = self.init_config.get('markets')
+        self.log.info('markets: %s' % ','.join(self.markets))
+
+        self.minBaseVolume = self.init_config.get("minBaseVolume");
+        self.log.info("minBaseVolume: %s" % self.minBaseVolume);
 
         self.ctx = ssl.create_default_context()
         self.ctx.check_hostname = False
@@ -52,4 +79,13 @@ class BittrexTickerCheck(AgentCheck):
 
 
 
-  
+class MarketDataEntry():
+    low = None;
+    high = None;
+    volume = None;
+    last = None;
+    baseVolume = None;
+    bid = None;
+    ask = None;
+    openBuyOrders = None;
+    openSellOrder = None;

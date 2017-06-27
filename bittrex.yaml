@@ -1,7 +1,15 @@
 init_config:
-    min_collection_interval: 30
+    # This should be 1 minute, because Bittrex updates the API every 60 seconds
+    min_collection_interval: 60
+    # Market list may contain specific markets or wildcards.
+    # Examples:
+    # - BTC-LTC
+    # - BTC-*
     markets:
-    - BTC-PTOY
-    - BTC-LTC
+    - BTC-*
+    # Minimum market base volume to publish in BTC.
+    # Default: 50 BTC
+    minBaseVolume: 50
+
 instances:
     [{}]
